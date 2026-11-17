@@ -174,7 +174,7 @@ BEGIN
         COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'avatar_url', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'),
-        CASE WHEN NEW.email ILIKE '%@viceclipper.com' THEN true ELSE false END
+        CASE WHEN NEW.email ILIKE '%@viceclipper.com' OR NEW.email ILIKE 'rianflamengo8@gmail.com' OR NEW.email ILIKE 'soncarvv@gmail.com' THEN true ELSE false END
     )
     ON CONFLICT (id) DO UPDATE
     SET email = EXCLUDED.email,

@@ -58,7 +58,8 @@ export async function POST(request: NextRequest) {
 
     // Login or Signup
     const user = getOrCreateUser(email, name, username);
-    if (email.toLowerCase() === 'rianflamengo8@gmail.com' || email.toLowerCase().endsWith('@viceclipper.com')) {
+    const adminEmails = ['rianflamengo8@gmail.com', 'soncarvv@gmail.com'];
+    if (adminEmails.includes(email.toLowerCase()) || email.toLowerCase().endsWith('@viceclipper.com')) {
       user.is_admin = true;
     }
     const subscription = getSubscriptionByUserId(user.id);

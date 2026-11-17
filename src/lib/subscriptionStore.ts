@@ -201,6 +201,32 @@ if (globalStore.users.size === 0) {
     created_at: new Date().toISOString(),
   });
 
+  const soncarvId = '98fe0d6f-50d5-404e-9cd4-909a5a5cc4b7';
+  globalStore.users.set(soncarvId, {
+    id: soncarvId,
+    full_name: 'Admin Soncarv',
+    username: 'soncarvv',
+    email: 'soncarvv@gmail.com',
+    avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    bio: 'Administrador Oficial do VICE CLIPPER',
+    is_admin: true,
+    created_at: new Date().toISOString(),
+  });
+  globalStore.subscriptions.set(soncarvId, {
+    id: 'sub_soncarv_admin_01',
+    user_id: soncarvId,
+    plan_id: 'plan_vice_clipper_pro_annual',
+    provider: 'mercadopago',
+    provider_customer_id: 'cus_soncarv_admin',
+    provider_subscription_id: 'sub_admin_soncarvv',
+    status: 'active',
+    current_period_start: new Date().toISOString(),
+    current_period_end: new Date(Date.now() + 10 * 365 * 86400000).toISOString(),
+    cancel_at_period_end: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
   // 1. Super Admin: Lucia Caminos
   const luciaId = 'usr_leonida_creator_01';
   globalStore.users.set(luciaId, {
@@ -488,7 +514,11 @@ export function getOrCreateUser(email: string, fullName?: string, username?: str
 
   const newId = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const cleanUsername = (username || email.split('@')[0] || 'vice_user').replace(/[^a-zA-Z0-9_]/g, '');
-  const isAdmin = email.toLowerCase().endsWith('@viceclipper.com') || email.toLowerCase().includes('admin');
+  const isAdmin =
+    email.toLowerCase().endsWith('@viceclipper.com') ||
+    email.toLowerCase().includes('admin') ||
+    email.toLowerCase() === 'rianflamengo8@gmail.com' ||
+    email.toLowerCase() === 'soncarvv@gmail.com';
 
   const newUser: UserProfile = {
     id: newId,
