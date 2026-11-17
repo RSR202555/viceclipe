@@ -1,0 +1,48 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Next.js build output
+/.next/
+/out/
+/build
+/dist
+
+# Environment variables (NEVER COMMIT SECRETS TO GIT)
+.env
+.env*.local
+
+# Vercel CLI
+.vercel
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Python / AI-Engine (venv, storage & caches)
+__pycache__/
+*.py[cod]
+*$py.class
+ai-engine/python/
+ai-engine/storage/
+ai-engine/__pycache__/
+ai-engine/.env
+ai-engine/app/__pycache__/
+ai-engine/tests/__pycache__/
+
+# Video renders (keep structure, ignore generated MP4/ASS files)
+public/renders/*.mp4
+public/renders/*.ass
+!public/renders/.gitkeep

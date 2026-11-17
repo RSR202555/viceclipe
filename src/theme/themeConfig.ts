@@ -1,0 +1,121 @@
+'use client';
+
+import type { ThemeConfig } from 'antd';
+import { theme } from 'antd';
+
+export const viceThemeConfig: ThemeConfig = {
+  algorithm: theme.darkAlgorithm,
+  token: {
+    colorPrimary: '#FF1493',
+    colorPrimaryHover: '#FF2A9D',
+    colorPrimaryActive: '#D80076',
+    colorInfo: '#00D9FF',
+    colorSuccess: '#00E5A3',
+    colorWarning: '#FFB800',
+    colorError: '#FF3366',
+    colorBgBase: '#070611',
+    colorBgContainer: '#151027',
+    colorBgElevated: '#1B1433',
+    colorBgLayout: '#070611',
+    colorBorder: 'rgba(139, 46, 255, 0.22)',
+    colorBorderSecondary: 'rgba(255, 20, 147, 0.18)',
+    colorText: '#FFFFFF',
+    colorTextSecondary: '#A7A1B8',
+    colorTextTertiary: '#7E7694',
+    borderRadius: 12,
+    borderRadiusLG: 16,
+    borderRadiusSM: 8,
+    fontFamily: 'var(--font-sans), "Plus Jakarta Sans", system-ui, sans-serif',
+    controlHeight: 40,
+    fontSize: 14,
+  },
+  components: {
+    Layout: {
+      bodyBg: '#070611',
+      headerBg: '#070611',
+      siderBg: '#0A0618',
+    },
+    Card: {
+      colorBgContainer: '#151027',
+      colorBorderSecondary: 'rgba(139, 46, 255, 0.2)',
+      borderRadiusLG: 18,
+      boxShadow: '0 8px 30px rgba(0, 0, 0, 0.45)',
+      paddingLG: 20,
+    },
+    Button: {
+      primaryColor: '#FFFFFF',
+      borderRadius: 9999,
+      colorPrimary: '#FF1493',
+      colorPrimaryHover: '#FF2A9D',
+      controlHeight: 42,
+      paddingInline: 22,
+      fontWeight: 600,
+      defaultBg: 'rgba(21, 16, 39, 0.8)',
+      defaultBorderColor: 'rgba(139, 46, 255, 0.3)',
+      defaultColor: '#FFFFFF',
+      defaultHoverBg: 'rgba(139, 46, 255, 0.18)',
+      defaultHoverBorderColor: '#00D9FF',
+      defaultHoverColor: '#00D9FF',
+    },
+    Input: {
+      colorBgContainer: '#100B1D',
+      colorBorder: 'rgba(139, 46, 255, 0.25)',
+      hoverBorderColor: '#FF1493',
+      activeBorderColor: '#00D9FF',
+      colorText: '#FFFFFF',
+      colorTextPlaceholder: '#7E7694',
+      borderRadius: 9999,
+      controlHeight: 44,
+      paddingInline: 18,
+    },
+    Menu: {
+      colorItemBg: 'transparent',
+      colorItemBgSelected: 'rgba(255, 20, 147, 0.15)',
+      colorItemTextSelected: '#FFFFFF',
+      colorItemTextHover: '#FFFFFF',
+      colorItemBgHover: 'rgba(139, 46, 255, 0.12)',
+      itemBorderRadius: 12,
+      itemHeight: 44,
+    },
+    Modal: {
+      contentBg: '#151027',
+      headerBg: '#151027',
+      titleColor: '#FFFFFF',
+      borderRadiusLG: 20,
+    },
+    Drawer: {
+      colorBgElevated: '#0C081A',
+    },
+    Tabs: {
+      colorPrimary: '#FF1493',
+      colorPrimaryHover: '#00D9FF',
+      colorText: '#A7A1B8',
+      cardBg: '#100B1D',
+    },
+    Badge: {
+      colorError: '#FF1493',
+      indicatorHeight: 18,
+    },
+    Tag: {
+      borderRadiusSM: 8,
+      defaultBg: 'rgba(139, 46, 255, 0.15)',
+      defaultColor: '#00D9FF',
+    },
+    Progress: {
+      defaultColor: '#FF1493',
+    },
+    Statistic: {
+      titleFontSize: 13,
+      contentFontSize: 26,
+    },
+    Tooltip: {
+      colorBgSpotlight: '#1B1433',
+      colorTextLightSolid: '#FFFFFF',
+      borderRadius: 8,
+    },
+    Dropdown: {
+      colorBgElevated: '#1A1433',
+      borderRadiusLG: 14,
+    },
+  },
+};
