@@ -1,6 +1,16 @@
 import { Ytdl } from '@distube/ytdl-core';
 
-const ytdl = new Ytdl();
+export function getYtdlInstance(): Ytdl {
+  const cookie = process.env.YOUTUBE_COOKIE?.trim();
+  if (cookie) {
+    try {
+      return new Ytdl({ cookie });
+    } catch (err: any) {
+      console.warn('[ytdl] Could not initialize with YOUTUBE_COOKIE:', err?.message);
+    }
+  }
+  return new Ytdl();
+}
 
 // In-memory cache for direct GoogleVideo stream URLs with TTL
 export interface CachedStream {
@@ -27,6 +37,7 @@ export async function getOrFetchStreamUrls(
   const fullUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
   try {
+    const ytdl = getYtdlInstance();
     const info = await ytdl.getInfo(fullUrl);
 
     // Prioritize H.264 (AVC1) MP4 formats for universal browser hardware acceleration (1080p60, 720p60)

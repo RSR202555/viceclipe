@@ -88,6 +88,14 @@ export async function GET(request: NextRequest) {
       return new Response('Parâmetro v (ID do vídeo) ausente.', { status: 400 });
     }
 
+    // Explicit sample requests
+    if (videoId === 'sample' || videoId === 'sample-1') {
+      const fallbackPath = path.join(process.cwd(), 'public', 'videos', 'gta_oceandrive.mp4');
+      if (fs.existsSync(fallbackPath)) {
+        return streamLocalFile(fallbackPath, request, type === 'audio' ? 'audio/mp4' : 'video/mp4');
+      }
+    }
+
     const cacheKey = `${videoId}:${lang || 'default'}`;
     let cached = await getOrFetchStreamUrls(videoId, lang);
     let targetUrl = type === 'audio' ? cached.audioUrl : cached.videoUrl;
@@ -158,16 +166,22 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      console.warn(`[YouTube Stream] Upstream stream unavailable (status ${upstreamRes?.status}). Falling back to local playable gameplay.`);
+      console.warn(`[YouTube Stream] Upstream stream unavailable for ${videoId} (status ${upstreamRes?.status}).`);
     }
 
-    // High performance local fallback if bot detection or expired token blocked direct streams
-    const fallbackPath = path.join(process.cwd(), 'public', 'videos', 'gta_oceandrive.mp4');
-    if (fs.existsSync(fallbackPath)) {
-      return streamLocalFile(fallbackPath, request, type === 'audio' ? 'audio/mp4' : 'video/mp4');
-    }
-
-    return new Response(`Formato ${type} não disponível para este vídeo.`, { status: 404 });
+    return new Response(
+      JSON.stringify({
+        error: `Stream indisponível para o vídeo ${videoId}. O vídeo pode possuir restrição de idade (18+), bloqueio de direitos autorais ou estar indisponível para streaming direto.`,
+      }),
+      {
+        status: 404,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-store',
+        },
+      }
+    );
   } catch (err: any) {
     console.error('[YouTube Stream Error]:', err);
     return new Response(err.message || 'Erro ao transmitir vídeo do YouTube', { status: 500 });

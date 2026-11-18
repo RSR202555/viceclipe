@@ -11,6 +11,7 @@ import {
   RotateCw,
   Sparkles,
   CheckCircle2,
+  AlertTriangle,
   Download,
   Share2,
   Film,
@@ -126,6 +127,12 @@ export const ViceClipperStudio: React.FC = () => {
   const [videoDuration, setVideoDuration] = useState<number>(46);
   const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
   const [isLoadingYoutube, setIsLoadingYoutube] = useState<boolean>(false);
+  const [urlError, setUrlError] = useState<{
+    message: string;
+    suggestion?: string;
+    isAgeRestricted?: boolean;
+    videoId?: string;
+  } | null>(null);
   const [availableAudioTracks, setAvailableAudioTracks] = useState<
     { id: string; label: string; isDefault: boolean }[]
   >([]);
@@ -183,16 +190,15 @@ export const ViceClipperStudio: React.FC = () => {
   // Get current subtitle text to display on player overlay
   const getDisplayedSubtitle = () => {
     if (subtitleMode === 'speech') {
-      if (activeSpeechText) return activeSpeechText;
       if (speechCues.length > 0) {
         const matching = speechCues.find((c) => currentTime >= c.start && currentTime <= c.end);
         if (matching) return matching.text;
-        const nearCue = speechCues.find((c) => c.start >= startTime && c.start <= endTime) || speechCues[0];
-        return nearCue?.text || '🎙️ [Falas de quem está falando]';
+        if (activeSpeechText) return activeSpeechText;
+        return '';
       }
-      return '🎙️ [Falas de quem está falando]';
+      return captionText || '';
     }
-    return captionText;
+    return captionText || '';
   };
 
   // Dynamic Filtering & Sorting for AI Moments
@@ -492,6 +498,9 @@ export const ViceClipperStudio: React.FC = () => {
       setVideoSourceType('upload');
       setIsRealFileUploaded(true);
       setYoutubeVideoId(null);
+      setUrlError(null);
+      setSpeechCues([]);
+      setActiveSpeechText('');
       message.success(`Vídeo real "${file.name}" carregado com sucesso!`);
       runAiAnalysis(file.name, 'Local', videoDuration, [], '');
     }
@@ -506,6 +515,7 @@ export const ViceClipperStudio: React.FC = () => {
     }
 
     setIsLoadingYoutube(true);
+    setUrlError(null);
 
     try {
       const res = await fetch('/api/clipper/youtube/info', {
@@ -517,6 +527,7 @@ export const ViceClipperStudio: React.FC = () => {
       const data = await res.json();
 
       if (res.ok && data.success) {
+        setUrlError(null);
         const freshTimestamp = Date.now();
         // Force fresh URL with unique cache-buster to bypass any browser disk cache
         const finalStreamUrl = data.streamUrl.includes('?')
@@ -548,6 +559,9 @@ export const ViceClipperStudio: React.FC = () => {
           setSpeechCues(data.speechCues);
           setSubtitleMode('speech');
           setActiveSpeechText(data.speechCues[0]?.text || '');
+        } else {
+          setSpeechCues([]);
+          setActiveSpeechText('');
         }
         setStreamKey(freshTimestamp);
         setIsRealFileUploaded(true);
@@ -568,10 +582,20 @@ export const ViceClipperStudio: React.FC = () => {
           data.description || ''
         );
       } else {
-        message.error(data.error || 'Erro ao carregar o vídeo do YouTube.');
+        setUrlError({
+          message: data.error || 'Erro ao carregar o vídeo do YouTube.',
+          suggestion: data.suggestion,
+          isAgeRestricted: Boolean(data.isAgeRestricted),
+          videoId: data.videoId,
+        });
+        message.error(data.error || 'Erro ao carregar o vídeo do YouTube.', 6);
       }
     } catch (err: any) {
       console.error(err);
+      setUrlError({
+        message: 'Falha ao conectar com o serviço de download do YouTube.',
+        suggestion: 'Verifique a conexão de internet ou faça o envio direto pela aba "Upload PC".',
+      });
       message.error('Falha ao conectar com o serviço de download do YouTube.');
     } finally {
       setIsLoadingYoutube(false);
@@ -1128,7 +1152,10 @@ export const ViceClipperStudio: React.FC = () => {
                           type="text"
                           placeholder="https://www.youtube.com/watch?v=... ou https://twitch.tv/..."
                           value={urlInput}
-                          onChange={(e) => setUrlInput(e.target.value)}
+                          onChange={(e) => {
+                            setUrlInput(e.target.value);
+                            if (urlError) setUrlError(null);
+                          }}
                           className="w-full bg-[#100B1D] border border-purple-500/30 rounded-xl pl-10 pr-4 py-3 text-xs text-white focus:outline-none focus:border-red-500 font-mono"
                         />
                       </div>
@@ -1144,6 +1171,54 @@ export const ViceClipperStudio: React.FC = () => {
                     </div>
                   </div>
 
+                  {/* URL Error Banner */}
+                  {urlError && (
+                    <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-300 flex flex-col gap-2.5">
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <strong className="text-amber-200 block mb-1">
+                            {urlError.isAgeRestricted ? 'Restrição de Idade (18+) no YouTube' : 'Aviso ao Importar Vídeo'}
+                          </strong>
+                          <p className="text-zinc-300 text-[11px] leading-relaxed">
+                            {urlError.message}
+                          </p>
+                          {urlError.suggestion && (
+                            <p className="text-zinc-400 text-[11px] mt-1.5 leading-relaxed bg-black/40 p-2.5 rounded-lg border border-white/5">
+                              💡 <strong>Solução recomendada:</strong> {urlError.suggestion}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 pt-2 border-t border-amber-500/20 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVideoSourceType('upload');
+                            setUrlError(null);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-vice-pink text-white text-[11px] font-bold flex items-center gap-1.5 hover:opacity-90 cursor-pointer shadow-[0_0_10px_rgba(255,20,147,0.3)]"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Abrir Upload do PC (Vídeo Local)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const testUrl = 'https://www.youtube.com/watch?v=QdBZY2fkU-0';
+                            setUrlInput(testUrl);
+                            setUrlError(null);
+                            handleLoadUrl(testUrl, false);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-[#151027] border border-purple-500/30 text-zinc-300 hover:text-white text-[11px] font-medium flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Play className="w-3 h-3 text-emerald-400" />
+                          <span>Testar Link Oficial GTA 6</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Quick presets */}
                   <div className="pt-2">
                     <span className="text-[11px] font-semibold text-zinc-400 block mb-2">
@@ -1155,6 +1230,7 @@ export const ViceClipperStudio: React.FC = () => {
                         onClick={() => {
                           const url = 'https://www.youtube.com/watch?v=QdBZY2fkU-0';
                           setUrlInput(url);
+                          setUrlError(null);
                           handleLoadUrl(url, false);
                         }}
                         className="py-1.5 px-3 rounded-xl bg-[#151027] border border-red-500/30 hover:border-red-500 text-[11px] text-zinc-300 hover:text-white flex items-center gap-1.5 transition-all cursor-pointer"
@@ -1166,7 +1242,7 @@ export const ViceClipperStudio: React.FC = () => {
                   </div>
 
                   {/* Status Box */}
-                  {youtubeVideoId && (
+                  {youtubeVideoId && !urlError && (
                     <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-400 flex flex-col gap-2">
                       <div className="flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 shrink-0" />
@@ -1317,6 +1393,14 @@ export const ViceClipperStudio: React.FC = () => {
                         setVideoTitle(sample.title);
                         setIsRealFileUploaded(false);
                         setYoutubeVideoId(null);
+                        setUrlError(null);
+                        if (sample.id === 'sample-1') {
+                          setSpeechCues(GTA6_SAMPLE_SPEECH_CUES);
+                          setActiveSpeechText('Lucia, você sabe por que tá aqui?');
+                        } else {
+                          setSpeechCues([]);
+                          setActiveSpeechText('');
+                        }
                       }}
                       className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
                         videoUrl === sample.videoUrl

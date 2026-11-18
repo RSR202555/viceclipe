@@ -1,9 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { Ytdl } from '@distube/ytdl-core';
-
-const ytdl = new Ytdl();
+import { getYtdlInstance } from '@/lib/youtubeStream';
 
 function extractYoutubeId(url: string): string | null {
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
@@ -29,6 +27,7 @@ export async function POST(request: NextRequest) {
     const fullUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
     try {
+      const ytdl = getYtdlInstance();
       const info = await ytdl.getInfo(fullUrl);
       const lengthSeconds = Number(info.videoDetails.lengthSeconds) || 90;
       const thumbs = info.videoDetails.thumbnails || [];
@@ -56,6 +55,10 @@ export async function POST(request: NextRequest) {
         allMp4Formats.find((f) => f.height && f.height <= 1080) ||
         allMp4Formats[0] ||
         info.formats.find((f) => f.hasVideo && Boolean(f.url));
+
+      if (!videoFormat || !videoFormat.url) {
+        throw new Error('Nenhum formato de vídeo reproduzível disponível para este vídeo.');
+      }
 
       const now = Date.now();
       const hasEmbeddedAudio = Boolean(videoFormat?.hasAudio);
@@ -120,34 +123,89 @@ export async function POST(request: NextRequest) {
         speechCues,
       });
     } catch (ytdlErr: any) {
-      console.warn('[ytdl bot detection, using oEmbed fallback]:', ytdlErr.message);
+      console.warn('[ytdl getInfo error]:', ytdlErr.message);
 
-      // Robust fallback to YouTube official oEmbed API
-      const oembedRes = await fetch(
-        `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
-      );
+      const errMsg = ytdlErr?.message || '';
+      const isAgeRestricted =
+        errMsg.includes('confirm your age') ||
+        errMsg.includes('age-restricted') ||
+        errMsg.includes('AGE_RESTRICTED');
+      const isBotCheck =
+        errMsg.includes('not a bot') ||
+        errMsg.includes('BOT_CHECK') ||
+        errMsg.includes('Sign in to confirm');
+      const isPrivate = errMsg.includes('private') || errMsg.includes('PRIVATE');
+      const isNotFound =
+        errMsg.includes('unavailable') ||
+        errMsg.includes('NOT_FOUND') ||
+        errMsg.includes('removed');
 
-      if (!oembedRes.ok) {
-        throw new Error('Não foi possível obter dados do vídeo do YouTube.');
+      // Attempt to fetch title & author via oembed so we can present user-friendly metadata
+      let oembedTitle = '';
+      let oembedAuthor = '';
+      try {
+        const oembedRes = await fetch(
+          `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
+        );
+        if (oembedRes.ok) {
+          const oembed = await oembedRes.json();
+          oembedTitle = oembed.title || '';
+          oembedAuthor = oembed.author_name || '';
+        }
+      } catch {}
+
+      const displayTitle = oembedTitle ? `"${oembedTitle}"` : `(ID: ${videoId})`;
+
+      if (isAgeRestricted) {
+        return NextResponse.json(
+          {
+            success: false,
+            isAgeRestricted: true,
+            videoId,
+            title: oembedTitle || 'Vídeo com Restrição de Idade (18+)',
+            author: oembedAuthor,
+            thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+            error: `O vídeo ${displayTitle} possui restrição de idade (18+) no YouTube e não permite reprodução direta sem login.`,
+            suggestion:
+              'O YouTube restringe a extração de vídeos para maiores. Você pode: 1) Usar a aba "Upload PC" enviando o arquivo MP4 diretamente, ou 2) Testar um link sem restrição 18+ (como trailers oficiais, podcasts ou gameplays livres).',
+          },
+          { status: 422 }
+        );
       }
 
-      const oembed = await oembedRes.json();
-      const bestThumb = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+      if (isBotCheck) {
+        return NextResponse.json(
+          {
+            success: false,
+            videoId,
+            title: oembedTitle,
+            error: `O YouTube bloqueou temporariamente a requisição para ${displayTitle} por verificação de segurança (Bot Check).`,
+            suggestion:
+              'Aguarde alguns minutos ou utilize a aba "Upload PC" para importar o arquivo diretamente do seu computador.',
+          },
+          { status: 429 }
+        );
+      }
 
-      const now = Date.now();
-      return NextResponse.json({
-        success: true,
-        videoId,
-        title: oembed.title || 'Vídeo do YouTube',
-        author: oembed.author_name || 'Criador do YouTube',
-        duration: 90,
-        thumbnail: bestThumb,
-        keywords: [oembed.author_name || '', 'YouTube', 'Viral'],
-        description: `Vídeo importado de ${oembed.author_name}`,
-        streamUrl: `/api/clipper/youtube/stream?v=${videoId}&t=${now}`,
-        audioUrl: `/api/clipper/youtube/stream?v=${videoId}&type=audio&t=${now}`,
-        isOembedFallback: true,
-      });
+      if (isPrivate || isNotFound) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `O vídeo ${displayTitle} está privado ou não está disponível no YouTube.`,
+          },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Não foi possível carregar o vídeo ${displayTitle}: ${errMsg || 'Erro na extração de mídia'}`,
+          suggestion:
+            'Tente outro vídeo do YouTube ou envie o arquivo diretamente pela aba "Upload PC".',
+        },
+        { status: 422 }
+      );
     }
   } catch (err: any) {
     console.error('[YouTube Info Error]:', err);
