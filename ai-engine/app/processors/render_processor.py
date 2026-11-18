@@ -140,6 +140,7 @@ def render_clip(
     end_time: float,
     aspect_ratio: str = "9:16",
     framing_mode: str = "cover",
+    framing_focus: str = "center",
     subtitle_style: str = "neon_pink",
     subtitle_position: str = "bottom",
     subtitle_size: str = "medium",
@@ -211,19 +212,15 @@ def render_clip(
             ]
             vf = ",".join([f for f in filters if f])
             cmd.extend(["-vf", vf, "-map", "0:v", "-map", "0:a?"])
-        else: # 'cover' (Smart Proportional Fill with balanced zoom limit)
-            safe_zoom = 1.18
-            fg_width = int(round(1080 * safe_zoom))
-            fc = (
-                f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=16:4,setsar=1[bg];"
-                f"[0:v]scale={fg_width}:-2,crop=1080:ih:(iw-1080)/2:0,setsar=1[fg];"
-                f"[bg][fg]overlay=(W-w)/2:(H-h)/2"
-            )
-            if sub_filter:
-                fc += f"[merged];[merged]{sub_filter}[outv]"
-            else:
-                fc += "[outv]"
-            cmd.extend(["-filter_complex", fc, "-map", "[outv]", "-map", "0:a?"])
+        else: # 'cover' (100% full-screen fill without blur or bars)
+            crop_x = "(in_w-out_w)/2"
+            if framing_focus == "left":
+                crop_x = "0"
+            elif framing_focus == "right":
+                crop_x = "in_w-out_w"
+            filters = [f"crop=ih*(9/16):ih:{crop_x}:0", "scale=1080:1920", sub_filter]
+            vf = ",".join([f for f in filters if f])
+            cmd.extend(["-vf", vf, "-map", "0:v", "-map", "0:a?"])
     else: # 16:9
         filters = ["scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black", sub_filter]
         vf = ",".join([f for f in filters if f])

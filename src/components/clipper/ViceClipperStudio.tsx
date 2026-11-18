@@ -159,7 +159,8 @@ export const ViceClipperStudio: React.FC = () => {
   // AI Pipeline settings
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9'>('9:16');
   const [framingMode, setFramingMode] = useState<'cover' | 'black-bars' | 'blur'>('cover');
-  const [coverZoom, setCoverZoom] = useState<number>(1.18); // Default smart open framing (1.18x)
+  const [framingFocus, setFramingFocus] = useState<'center' | 'left' | 'right' | 'top'>('center');
+  const [coverZoom, setCoverZoom] = useState<number>(1.0); // 1.0 = 100% proportional fill
   const [autoTracking, setAutoTracking] = useState<boolean>(true);
   const [includeSubtitles, setIncludeSubtitles] = useState<boolean>(true);
 
@@ -847,6 +848,7 @@ export const ViceClipperStudio: React.FC = () => {
           endTime,
           aspectRatio,
           framingMode,
+          framingFocus,
           coverZoom,
           lang: selectedAudioLang,
           videoFilter,
@@ -2166,20 +2168,10 @@ export const ViceClipperStudio: React.FC = () => {
                   aspectRatio === '9:16' ? 'w-[290px] h-[515px]' : 'w-full aspect-video'
                 }`}
               >
-                {/* Ambient Blurred Backdrop for Blur Mode */}
+                {/* Ambient Blurred Backdrop only for Blur Mode */}
                 {aspectRatio === '9:16' && framingMode === 'blur' && (
                   <div
                     className="absolute inset-0 bg-cover bg-center filter blur-2xl opacity-60 scale-125 pointer-events-none"
-                    style={{
-                      backgroundImage: `url(${videoThumbnail || '/images/thumb-1.png'})`,
-                    }}
-                  />
-                )}
-
-                {/* Smart Ambient Backdrop for Preencher (Cover) Mode — Fills 100% 9:16 area without black bars */}
-                {aspectRatio === '9:16' && framingMode === 'cover' && (
-                  <div
-                    className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-65 scale-110 pointer-events-none"
                     style={{
                       backgroundImage: `url(${videoThumbnail || '/images/thumb-1.png'})`,
                     }}
@@ -2190,17 +2182,24 @@ export const ViceClipperStudio: React.FC = () => {
                   key={`${videoUrl}_${streamKey}`}
                   ref={videoRef}
                   src={videoUrl}
-                  className={`w-full transition-all relative z-10 ${
+                  className={`transition-all relative z-10 ${
                     aspectRatio === '9:16' && framingMode === 'blur'
-                      ? 'object-contain max-h-[300px] shadow-[0_0_35px_rgba(0,0,0,0.9)] rounded-xl border border-white/10'
+                      ? 'w-full object-contain max-h-[300px] shadow-[0_0_35px_rgba(0,0,0,0.9)] rounded-xl border border-white/10'
                       : aspectRatio === '9:16' && framingMode === 'black-bars'
-                      ? 'object-contain h-full bg-black'
-                      : aspectRatio === '9:16' && framingMode === 'cover'
-                      ? 'w-full object-cover max-h-[350px] shadow-[0_0_30px_rgba(0,0,0,0.65)]'
-                      : 'h-full object-cover'
+                      ? 'w-full object-contain h-full bg-black'
+                      : 'w-full h-full object-cover'
                   } ${getVideoFilterClass()}`}
                   style={{
-                    transform: aspectRatio === '9:16' && framingMode === 'cover' ? `scale(${coverZoom})` : undefined,
+                    objectPosition:
+                      aspectRatio === '9:16' && framingMode === 'cover'
+                        ? framingFocus === 'left'
+                          ? '15% center'
+                          : framingFocus === 'right'
+                          ? '85% center'
+                          : framingFocus === 'top'
+                          ? '50% 10%'
+                          : 'center center'
+                        : undefined,
                   }}
                   onTimeUpdate={handleTimeUpdate}
                   onPlay={() => {
@@ -2322,34 +2321,59 @@ export const ViceClipperStudio: React.FC = () => {
                     </button>
                   </div>
 
-                  {/* Discrete Smart Zoom Control for Preencher Mode */}
+                  {/* Smart Framing Focus Controls for Preencher Mode */}
                   {framingMode === 'cover' && (
-                    <div className="w-full flex items-center justify-between px-2.5 py-1 rounded-xl bg-purple-950/40 border border-purple-500/20 text-[10px] text-zinc-300">
-                      <span className="flex items-center gap-1 font-medium">
-                        <span>Enquadramento:</span>
-                        <strong className="text-vice-pink font-mono">{coverZoom.toFixed(2)}x</strong>
-                      </span>
-                      <div className="flex items-center gap-1">
+                    <div className="w-full flex flex-col gap-1 px-2.5 py-1.5 rounded-xl bg-purple-950/40 border border-purple-500/20 text-[10px] text-zinc-300">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1 font-semibold text-vice-pink">
+                          <span>📐 Enquadramento:</span>
+                        </span>
+                        <span className="text-[9px] text-emerald-400 font-medium">100% Preenchido</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1 mt-0.5">
                         <button
                           type="button"
-                          onClick={() => setCoverZoom(1.05)}
-                          className={`px-1.5 py-0.5 rounded text-[9px] cursor-pointer transition-colors ${coverZoom <= 1.10 ? 'bg-vice-pink text-white font-bold' : 'bg-black/30 text-zinc-400 hover:text-white'}`}
+                          onClick={() => setFramingFocus('left')}
+                          className={`py-1 px-1 rounded text-[9px] cursor-pointer transition-colors text-center ${
+                            framingFocus === 'left'
+                              ? 'bg-vice-pink text-white font-bold shadow-[0_0_8px_rgba(255,20,147,0.5)]'
+                              : 'bg-black/30 text-zinc-400 hover:text-white'
+                          }`}
                         >
-                          Mais Aberto
+                          👈 Esq.
                         </button>
                         <button
                           type="button"
-                          onClick={() => setCoverZoom(1.18)}
-                          className={`px-1.5 py-0.5 rounded text-[9px] cursor-pointer transition-colors ${coverZoom > 1.10 && coverZoom < 1.25 ? 'bg-vice-pink text-white font-bold' : 'bg-black/30 text-zinc-400 hover:text-white'}`}
+                          onClick={() => setFramingFocus('center')}
+                          className={`py-1 px-1 rounded text-[9px] cursor-pointer transition-colors text-center ${
+                            framingFocus === 'center'
+                              ? 'bg-vice-pink text-white font-bold shadow-[0_0_8px_rgba(255,20,147,0.5)]'
+                              : 'bg-black/30 text-zinc-400 hover:text-white'
+                          }`}
                         >
-                          Padrão
+                          🎯 Centro
                         </button>
                         <button
                           type="button"
-                          onClick={() => setCoverZoom(1.30)}
-                          className={`px-1.5 py-0.5 rounded text-[9px] cursor-pointer transition-colors ${coverZoom >= 1.25 ? 'bg-vice-pink text-white font-bold' : 'bg-black/30 text-zinc-400 hover:text-white'}`}
+                          onClick={() => setFramingFocus('right')}
+                          className={`py-1 px-1 rounded text-[9px] cursor-pointer transition-colors text-center ${
+                            framingFocus === 'right'
+                              ? 'bg-vice-pink text-white font-bold shadow-[0_0_8px_rgba(255,20,147,0.5)]'
+                              : 'bg-black/30 text-zinc-400 hover:text-white'
+                          }`}
                         >
-                          Focado
+                          👉 Dir.
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFramingFocus('top')}
+                          className={`py-1 px-1 rounded text-[9px] cursor-pointer transition-colors text-center ${
+                            framingFocus === 'top'
+                              ? 'bg-vice-pink text-white font-bold shadow-[0_0_8px_rgba(255,20,147,0.5)]'
+                              : 'bg-black/30 text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          👤 Rosto
                         </button>
                       </div>
                     </div>
@@ -2746,24 +2770,21 @@ export const ViceClipperStudio: React.FC = () => {
                     />
                   ) : (
                     <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
-                      {aspectRatio === '9:16' && framingMode === 'cover' && (
-                        <div
-                          className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-65 scale-110 pointer-events-none"
-                          style={{
-                            backgroundImage: `url(${videoThumbnail || '/images/thumb-1.png'})`,
-                          }}
-                        />
-                      )}
                       <video
                         key={videoUrl}
                         src={videoUrl}
-                        className={`w-full relative z-10 ${
-                          aspectRatio === '9:16' && framingMode === 'cover'
-                            ? 'object-cover max-h-[250px]'
-                            : 'h-full object-cover'
-                        }`}
+                        className="w-full h-full object-cover"
                         style={{
-                          transform: aspectRatio === '9:16' && framingMode === 'cover' ? `scale(${coverZoom})` : undefined,
+                          objectPosition:
+                            aspectRatio === '9:16' && framingMode === 'cover'
+                              ? framingFocus === 'left'
+                                ? '15% center'
+                                : framingFocus === 'right'
+                                ? '85% center'
+                                : framingFocus === 'top'
+                                ? '50% 10%'
+                                : 'center center'
+                              : undefined,
                         }}
                         autoPlay
                         loop

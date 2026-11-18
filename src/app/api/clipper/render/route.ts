@@ -44,7 +44,8 @@ function formatAssTime(sec: number): string {
 function buildVideoFilter({
   aspectRatio,
   framingMode,
-  coverZoom = 1.18,
+  framingFocus = 'center',
+  coverZoom = 1.0,
   captionText,
   subtitleStyle,
   subtitlePosition = 'bottom',
@@ -54,6 +55,7 @@ function buildVideoFilter({
 }: {
   aspectRatio: string;
   framingMode: string;
+  framingFocus?: string;
   coverZoom?: number;
   captionText?: string;
   subtitleStyle?: string;
@@ -100,22 +102,24 @@ function buildVideoFilter({
 
   if (aspectRatio === '9:16') {
     if (framingMode === 'cover') {
-      // 1. Smart Cover: Proportional intelligent fill with balanced zoom limit (preserves >84% width and all subjects)
-      // Enforces a strict zoom limit to avoid aggressive crop while 100% filling 9:16 screen
-      const safeZoom = Math.min(1.35, Math.max(1.0, Number(coverZoom) || 1.18));
-      const fgWidth = Math.round(1080 * safeZoom);
+      // 1. Cover: 100% Full-Screen Fill (NO blur, NO black bars)
+      // Smart Framing Focus: Allows focusing on left subjects, right subjects, or face/head top to prevent cutoff
+      let cropX = '(in_w-out_w)/2'; // Center default
+      let cropY = '0'; // Top default (preserves heads and prevents chopping upper bodies)
 
-      let fc =
-        `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=16:4,setsar=1[bg];` +
-        `[0:v]scale=${fgWidth}:-2,crop=1080:ih:(iw-1080)/2:0,setsar=1[fg];` +
-        `[bg][fg]overlay=(W-w)/2:(H-h)/2`;
-
-      if (subtitleFilter) {
-        fc += `[merged];[merged]${subtitleFilter}[outv]`;
-      } else {
-        fc += '[outv]';
+      if (framingFocus === 'left') {
+        cropX = '0'; // Left-aligned
+      } else if (framingFocus === 'right') {
+        cropX = 'in_w-out_w'; // Right-aligned
+      } else if (framingFocus === 'top') {
+        cropX = '(in_w-out_w)/2';
+        cropY = '0';
       }
-      return ['-filter_complex', fc, '-map', '[outv]', '-map', audioMap];
+
+      const vf = [`crop=ih*(9/16):ih:${cropX}:${cropY}`, 'scale=1080:1920', subtitleFilter]
+        .filter(Boolean)
+        .join(',');
+      return ['-vf', vf, '-map', '0:v', '-map', audioMap];
     } else if (framingMode === 'black-bars') {
       // 2. Black bars: Center whole video inside 1080x1920 with solid black background (NO blur/shading)
       const vf = [
@@ -165,7 +169,8 @@ export async function POST(request: NextRequest) {
       endTime = 15,
       aspectRatio = '9:16',
       framingMode = 'cover', // Default to 'cover' (fills screen, zero blur)
-      coverZoom = 1.18, // Default smart open framing zoom (1.18x)
+      framingFocus = 'center', // Default framing focus: 'center' | 'left' | 'right' | 'top'
+      coverZoom = 1.0,
       lang,
       videoFilter = 'normal',
       captionText = '',
@@ -315,6 +320,7 @@ ${eventsSection}
       filterArgs = buildVideoFilter({
         aspectRatio,
         framingMode,
+        framingFocus,
         coverZoom,
         captionText: effectiveCaption,
         subtitleStyle,
@@ -353,6 +359,7 @@ ${eventsSection}
       filterArgs = buildVideoFilter({
         aspectRatio,
         framingMode,
+        framingFocus,
         coverZoom,
         captionText: effectiveCaption,
         subtitleStyle,
