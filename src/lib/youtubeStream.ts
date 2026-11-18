@@ -1,15 +1,72 @@
 import { Ytdl } from '@distube/ytdl-core';
 
-export function getYtdlInstance(): Ytdl {
-  const cookie = process.env.YOUTUBE_COOKIE?.trim();
-  if (cookie) {
+// Helper to normalize any cookie format (JSON array, Netscape cookies.txt, or Header String) into a valid cookie header
+function normalizeCookie(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+
+  // 1. If it's a JSON array (e.g. exported from Cookie-Editor or EditThisCookie as JSON)
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
     try {
-      return new Ytdl({ cookie });
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((c: any) => c && c.name && c.value)
+          .map((c: any) => `${c.name}=${c.value}`)
+          .join('; ');
+      }
+    } catch (e) {
+      console.warn('[ytdl] Could not parse cookie as JSON, using raw string');
+    }
+  }
+
+  // 2. If it's Netscape format (tab-separated rows, common in cookies.txt)
+  if (trimmed.includes('\t') && (trimmed.includes('.youtube.com') || trimmed.includes('# Netscape') || trimmed.includes('# HTTP Cookie File'))) {
+    const lines = trimmed.split('\n');
+    const pairs: string[] = [];
+    for (const line of lines) {
+      const l = line.trim();
+      if (!l || l.startsWith('#')) continue;
+      const parts = l.split('\t');
+      if (parts.length >= 7) {
+        pairs.push(`${parts[5]}=${parts[6]}`);
+      }
+    }
+    if (pairs.length > 0) {
+      return pairs.join('; ');
+    }
+  }
+
+  // 3. Standard Header String format (e.g. "SID=...; HSID=...; SSID=...")
+  return trimmed;
+}
+
+// Singleton instance to preserve YouTube session state, cookies, and client health
+let cachedYtdlInstance: Ytdl | null = null;
+let lastCookieValue: string | undefined = undefined;
+
+export function getYtdlInstance(): Ytdl {
+  const rawCookie = process.env.YOUTUBE_COOKIE?.trim();
+  const currentCookie = rawCookie ? normalizeCookie(rawCookie) : '';
+
+  // If instance already exists with the same cookie configuration, reuse it
+  if (cachedYtdlInstance && lastCookieValue === currentCookie) {
+    return cachedYtdlInstance;
+  }
+
+  lastCookieValue = currentCookie;
+
+  if (currentCookie) {
+    try {
+      cachedYtdlInstance = new Ytdl({ cookie: currentCookie });
+      return cachedYtdlInstance;
     } catch (err: any) {
       console.warn('[ytdl] Could not initialize with YOUTUBE_COOKIE:', err?.message);
     }
   }
-  return new Ytdl();
+
+  cachedYtdlInstance = new Ytdl();
+  return cachedYtdlInstance;
 }
 
 // In-memory cache for direct GoogleVideo stream URLs with TTL

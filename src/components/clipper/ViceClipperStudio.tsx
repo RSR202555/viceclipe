@@ -765,9 +765,26 @@ export const ViceClipperStudio: React.FC = () => {
       }
     }
 
-    // Keep audio synced only if significant drift occurs (> 0.35s) to avoid micro-stutters
-    if (audioRef.current && Math.abs(audioRef.current.currentTime - curr) > 0.35) {
+    // Keep audio synced safely only if audio is ready and not currently seeking
+    // This prevents audio from entering an infinite abort/buffer loop during playback
+    if (
+      audioRef.current &&
+      !audioRef.current.seeking &&
+      audioRef.current.readyState >= 2 &&
+      Math.abs(audioRef.current.currentTime - curr) > 0.45
+    ) {
       audioRef.current.currentTime = curr;
+    }
+
+    // Auto-resume audio if video is playing and audio is ready but stalled
+    if (
+      audioRef.current &&
+      videoRef.current &&
+      !videoRef.current.paused &&
+      audioRef.current.paused &&
+      audioRef.current.readyState >= 2
+    ) {
+      audioRef.current.play().catch(() => {});
     }
 
     if (currentStep === 3) {
@@ -776,6 +793,7 @@ export const ViceClipperStudio: React.FC = () => {
         videoRef.current.currentTime = startTime;
         if (audioRef.current) {
           audioRef.current.currentTime = startTime;
+          audioRef.current.play().catch(() => {});
         }
       }
     }
@@ -2214,6 +2232,12 @@ export const ViceClipperStudio: React.FC = () => {
                     src={audioUrl}
                     muted={isMuted}
                     preload="auto"
+                    onCanPlay={() => {
+                      if (audioRef.current && videoRef.current && !videoRef.current.paused) {
+                        audioRef.current.currentTime = videoRef.current.currentTime;
+                        audioRef.current.play().catch(() => {});
+                      }
+                    }}
                   />
                 )}
 
@@ -2673,7 +2697,11 @@ export const ViceClipperStudio: React.FC = () => {
                 <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto mb-6">
                   <a
                     href={renderedBlobUrl || videoUrl}
-                    download={renderedBlobUrl ? renderedBlobUrl.split('/').pop() : `vice_clip_${Date.now()}.mp4`}
+                    download={
+                      renderedBlobUrl?.includes('name=')
+                        ? decodeURIComponent(renderedBlobUrl.split('name=')[1]?.split('&')[0] || `vice_clip_${Date.now()}.mp4`)
+                        : (renderedBlobUrl ? renderedBlobUrl.split('/').pop() : `vice_clip_${Date.now()}.mp4`)
+                    }
                     className="flex-1 py-3.5 px-4 rounded-full text-xs font-bold uppercase tracking-wider text-white bg-gradient-to-r from-vice-pink to-vice-purple hover:opacity-95 shadow-[0_0_20px_rgba(255,20,147,0.5)] transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <Download className="w-4 h-4" />

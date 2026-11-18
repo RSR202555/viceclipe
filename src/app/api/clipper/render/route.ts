@@ -1,8 +1,10 @@
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Allow serverless functions up to 60s for video rendering
 
 import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { getOrFetchStreamUrls } from '@/lib/youtubeStream';
@@ -62,7 +64,9 @@ function buildVideoFilter({
 
   if (assFileRelPath) {
     // Mode A: Dynamic timed speech captions from .ass with exact PlayRes scaling
-    subtitleFilter = `subtitles=${assFileRelPath}`;
+    // Escape colons and backslashes for FFmpeg filtergraph syntax
+    const safeAss = assFileRelPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+    subtitleFilter = `subtitles='${safeAss}'`;
   } else if (captionText && captionText.trim()) {
     // Mode B: Static highlight headline banner
     const esc = captionText
@@ -161,8 +165,15 @@ export async function POST(request: NextRequest) {
     const endSec = Math.max(startSec + 1, Number(endTime) || (startSec + 10));
     const durationSec = Math.min(60, endSec - startSec); // Cap clip at 60s for high responsiveness
 
-    // Ensure output directory exists (safe for serverless/read-only environments)
-    const rendersDir = path.join(process.cwd(), 'public', 'renders');
+    // Ensure output directory exists (safe for both serverless/read-only and local environments)
+    const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    let rendersDir: string;
+    if (isServerless) {
+      rendersDir = path.join(os.tmpdir(), 'vice_renders');
+    } else {
+      rendersDir = path.join(process.cwd(), 'public', 'renders');
+    }
+
     try {
       if (!fs.existsSync(rendersDir)) {
         fs.mkdirSync(rendersDir, { recursive: true });
@@ -170,6 +181,10 @@ export async function POST(request: NextRequest) {
       cleanupOldRenders(rendersDir);
     } catch (fsErr) {
       console.warn('[rendersDir init warning]:', fsErr);
+      rendersDir = path.join(os.tmpdir(), 'vice_renders');
+      if (!fs.existsSync(rendersDir)) {
+        fs.mkdirSync(rendersDir, { recursive: true });
+      }
     }
 
     let assFileRelPath: string | null = null;
@@ -231,7 +246,7 @@ ${eventsSection}
         const assFileName = `sub_${Date.now()}_${Math.random().toString(36).substring(2, 6)}.ass`;
         tempAssPath = path.join(rendersDir, assFileName);
         fs.writeFileSync(tempAssPath, assContent, 'utf8');
-        assFileRelPath = path.relative(process.cwd(), tempAssPath).replace(/\\/g, '/');
+        assFileRelPath = tempAssPath;
       }
     }
 
@@ -253,6 +268,11 @@ ${eventsSection}
     if (!ffmpegPath || !fs.existsSync(ffmpegPath)) {
       throw new Error('Binário do FFmpeg não encontrado no servidor.');
     }
+
+    // Ensure execution permissions on serverless Linux
+    try {
+      fs.chmodSync(ffmpegPath, '755');
+    } catch {}
 
     let inputArgs: string[] = [];
     let filterArgs: string[] = [];
@@ -352,6 +372,9 @@ ${eventsSection}
       } catch {}
     }
 
+    // Construct universal video access URL (works both locally and in serverless /tmp)
+    const finalVideoUrl = `/api/clipper/render/file?name=${encodeURIComponent(outFileName)}`;
+
     // Persist real export to Supabase
     try {
       const stats = fs.statSync(outFilePath);
@@ -359,7 +382,7 @@ ${eventsSection}
         user_id: userId || '4c81a4f5-1af3-46b7-9040-138a0f33e4c7',
         job_id: jobId || null,
         segment_id: segmentId || null,
-        output_url: `/renders/${outFileName}`,
+        output_url: finalVideoUrl,
         resolution: aspectRatio === '9:16' ? '1080p' : '1080p',
         aspect_ratio: aspectRatio,
         framing_mode: framingMode,
@@ -374,7 +397,7 @@ ${eventsSection}
 
     return NextResponse.json({
       success: true,
-      videoUrl: `/renders/${outFileName}`,
+      videoUrl: finalVideoUrl,
       filename: outFileName,
       duration: durationSec,
     });
