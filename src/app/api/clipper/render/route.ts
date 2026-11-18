@@ -44,6 +44,7 @@ function formatAssTime(sec: number): string {
 function buildVideoFilter({
   aspectRatio,
   framingMode,
+  coverZoom = 1.18,
   captionText,
   subtitleStyle,
   subtitlePosition = 'bottom',
@@ -53,6 +54,7 @@ function buildVideoFilter({
 }: {
   aspectRatio: string;
   framingMode: string;
+  coverZoom?: number;
   captionText?: string;
   subtitleStyle?: string;
   subtitlePosition?: string;
@@ -98,9 +100,22 @@ function buildVideoFilter({
 
   if (aspectRatio === '9:16') {
     if (framingMode === 'cover') {
-      // 1. Cover: Crop to 9:16 and fill 100% of the screen (NO blur, NO black bars)
-      const vf = ['crop=ih*(9/16):ih', 'scale=1080:1920', subtitleFilter].filter(Boolean).join(',');
-      return ['-vf', vf, '-map', '0:v', '-map', audioMap];
+      // 1. Smart Cover: Proportional intelligent fill with balanced zoom limit (preserves >84% width and all subjects)
+      // Enforces a strict zoom limit to avoid aggressive crop while 100% filling 9:16 screen
+      const safeZoom = Math.min(1.35, Math.max(1.0, Number(coverZoom) || 1.18));
+      const fgWidth = Math.round(1080 * safeZoom);
+
+      let fc =
+        `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=16:4,setsar=1[bg];` +
+        `[0:v]scale=${fgWidth}:-2,crop=1080:ih:(iw-1080)/2:0,setsar=1[fg];` +
+        `[bg][fg]overlay=(W-w)/2:(H-h)/2`;
+
+      if (subtitleFilter) {
+        fc += `[merged];[merged]${subtitleFilter}[outv]`;
+      } else {
+        fc += '[outv]';
+      }
+      return ['-filter_complex', fc, '-map', '[outv]', '-map', audioMap];
     } else if (framingMode === 'black-bars') {
       // 2. Black bars: Center whole video inside 1080x1920 with solid black background (NO blur/shading)
       const vf = [
@@ -150,6 +165,7 @@ export async function POST(request: NextRequest) {
       endTime = 15,
       aspectRatio = '9:16',
       framingMode = 'cover', // Default to 'cover' (fills screen, zero blur)
+      coverZoom = 1.18, // Default smart open framing zoom (1.18x)
       lang,
       videoFilter = 'normal',
       captionText = '',
@@ -299,6 +315,7 @@ ${eventsSection}
       filterArgs = buildVideoFilter({
         aspectRatio,
         framingMode,
+        coverZoom,
         captionText: effectiveCaption,
         subtitleStyle,
         subtitlePosition,
@@ -336,6 +353,7 @@ ${eventsSection}
       filterArgs = buildVideoFilter({
         aspectRatio,
         framingMode,
+        coverZoom,
         captionText: effectiveCaption,
         subtitleStyle,
         subtitlePosition,

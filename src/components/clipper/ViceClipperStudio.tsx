@@ -159,6 +159,7 @@ export const ViceClipperStudio: React.FC = () => {
   // AI Pipeline settings
   const [aspectRatio, setAspectRatio] = useState<'9:16' | '16:9'>('9:16');
   const [framingMode, setFramingMode] = useState<'cover' | 'black-bars' | 'blur'>('cover');
+  const [coverZoom, setCoverZoom] = useState<number>(1.18); // Default smart open framing (1.18x)
   const [autoTracking, setAutoTracking] = useState<boolean>(true);
   const [includeSubtitles, setIncludeSubtitles] = useState<boolean>(true);
 
@@ -846,6 +847,7 @@ export const ViceClipperStudio: React.FC = () => {
           endTime,
           aspectRatio,
           framingMode,
+          coverZoom,
           lang: selectedAudioLang,
           videoFilter,
           includeSubtitles,
@@ -1705,7 +1707,7 @@ export const ViceClipperStudio: React.FC = () => {
                       }`}
                     >
                       <div>🔍 Preencher Tela</div>
-                      <div className="text-[9px] text-zinc-400">Sem sombreado</div>
+                      <div className="text-[9px] text-zinc-400">Zoom Inteligente</div>
                     </button>
 
                     <button
@@ -2174,6 +2176,16 @@ export const ViceClipperStudio: React.FC = () => {
                   />
                 )}
 
+                {/* Smart Ambient Backdrop for Preencher (Cover) Mode — Fills 100% 9:16 area without black bars */}
+                {aspectRatio === '9:16' && framingMode === 'cover' && (
+                  <div
+                    className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-65 scale-110 pointer-events-none"
+                    style={{
+                      backgroundImage: `url(${videoThumbnail || '/images/thumb-1.png'})`,
+                    }}
+                  />
+                )}
+
                 <video
                   key={`${videoUrl}_${streamKey}`}
                   ref={videoRef}
@@ -2183,8 +2195,13 @@ export const ViceClipperStudio: React.FC = () => {
                       ? 'object-contain max-h-[300px] shadow-[0_0_35px_rgba(0,0,0,0.9)] rounded-xl border border-white/10'
                       : aspectRatio === '9:16' && framingMode === 'black-bars'
                       ? 'object-contain h-full bg-black'
+                      : aspectRatio === '9:16' && framingMode === 'cover'
+                      ? 'w-full object-cover max-h-[350px] shadow-[0_0_30px_rgba(0,0,0,0.65)]'
                       : 'h-full object-cover'
                   } ${getVideoFilterClass()}`}
+                  style={{
+                    transform: aspectRatio === '9:16' && framingMode === 'cover' ? `scale(${coverZoom})` : undefined,
+                  }}
                   onTimeUpdate={handleTimeUpdate}
                   onPlay={() => {
                     setIsPlaying(true);
@@ -2268,40 +2285,75 @@ export const ViceClipperStudio: React.FC = () => {
 
               {/* Framing Mode Toggle (Preencher Tela vs Fundo Preto vs Desfoque) */}
               {aspectRatio === '9:16' && (
-                <div className="flex items-center justify-center gap-1.5 mt-2 w-[290px]">
-                  <button
-                    type="button"
-                    onClick={() => setFramingMode('cover')}
-                    className={`flex-1 py-1.5 px-1.5 rounded-xl text-[10px] font-bold transition-all text-center cursor-pointer border ${
-                      framingMode === 'cover'
-                        ? 'bg-gradient-to-r from-vice-pink to-vice-purple text-white border-vice-pink shadow-[0_0_10px_rgba(255,20,147,0.4)]'
-                        : 'bg-[#151027] border-purple-500/20 text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    <span>🔍 Preencher</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFramingMode('black-bars')}
-                    className={`flex-1 py-1.5 px-1.5 rounded-xl text-[10px] font-bold transition-all text-center cursor-pointer border ${
-                      framingMode === 'black-bars'
-                        ? 'bg-gradient-to-r from-vice-pink to-vice-purple text-white border-vice-pink shadow-[0_0_10px_rgba(255,20,147,0.4)]'
-                        : 'bg-[#151027] border-purple-500/20 text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    <span>⬛ Fundo Preto</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFramingMode('blur')}
-                    className={`flex-1 py-1.5 px-1.5 rounded-xl text-[10px] font-bold transition-all text-center cursor-pointer border ${
-                      framingMode === 'blur'
-                        ? 'bg-gradient-to-r from-vice-pink to-vice-purple text-white border-vice-pink shadow-[0_0_10px_rgba(255,20,147,0.4)]'
-                        : 'bg-[#151027] border-purple-500/20 text-zinc-400 hover:text-white'
-                    }`}
-                  >
-                    <span>🌫️ Desfoque</span>
-                  </button>
+                <div className="flex flex-col items-center gap-1.5 mt-2 w-[290px]">
+                  <div className="flex items-center justify-center gap-1.5 w-full">
+                    <button
+                      type="button"
+                      onClick={() => setFramingMode('cover')}
+                      className={`flex-1 py-1.5 px-1.5 rounded-xl text-[10px] font-bold transition-all text-center cursor-pointer border ${
+                        framingMode === 'cover'
+                          ? 'bg-gradient-to-r from-vice-pink to-vice-purple text-white border-vice-pink shadow-[0_0_10px_rgba(255,20,147,0.4)]'
+                          : 'bg-[#151027] border-purple-500/20 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <span>🔍 Preencher</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFramingMode('black-bars')}
+                      className={`flex-1 py-1.5 px-1.5 rounded-xl text-[10px] font-bold transition-all text-center cursor-pointer border ${
+                        framingMode === 'black-bars'
+                          ? 'bg-gradient-to-r from-vice-pink to-vice-purple text-white border-vice-pink shadow-[0_0_10px_rgba(255,20,147,0.4)]'
+                          : 'bg-[#151027] border-purple-500/20 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <span>⬛ Fundo Preto</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFramingMode('blur')}
+                      className={`flex-1 py-1.5 px-1.5 rounded-xl text-[10px] font-bold transition-all text-center cursor-pointer border ${
+                        framingMode === 'blur'
+                          ? 'bg-gradient-to-r from-vice-pink to-vice-purple text-white border-vice-pink shadow-[0_0_10px_rgba(255,20,147,0.4)]'
+                          : 'bg-[#151027] border-purple-500/20 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <span>🌫️ Desfoque</span>
+                    </button>
+                  </div>
+
+                  {/* Discrete Smart Zoom Control for Preencher Mode */}
+                  {framingMode === 'cover' && (
+                    <div className="w-full flex items-center justify-between px-2.5 py-1 rounded-xl bg-purple-950/40 border border-purple-500/20 text-[10px] text-zinc-300">
+                      <span className="flex items-center gap-1 font-medium">
+                        <span>Enquadramento:</span>
+                        <strong className="text-vice-pink font-mono">{coverZoom.toFixed(2)}x</strong>
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setCoverZoom(1.05)}
+                          className={`px-1.5 py-0.5 rounded text-[9px] cursor-pointer transition-colors ${coverZoom <= 1.10 ? 'bg-vice-pink text-white font-bold' : 'bg-black/30 text-zinc-400 hover:text-white'}`}
+                        >
+                          Mais Aberto
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCoverZoom(1.18)}
+                          className={`px-1.5 py-0.5 rounded text-[9px] cursor-pointer transition-colors ${coverZoom > 1.10 && coverZoom < 1.25 ? 'bg-vice-pink text-white font-bold' : 'bg-black/30 text-zinc-400 hover:text-white'}`}
+                        >
+                          Padrão
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCoverZoom(1.30)}
+                          className={`px-1.5 py-0.5 rounded text-[9px] cursor-pointer transition-colors ${coverZoom >= 1.25 ? 'bg-vice-pink text-white font-bold' : 'bg-black/30 text-zinc-400 hover:text-white'}`}
+                        >
+                          Focado
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2682,15 +2734,44 @@ export const ViceClipperStudio: React.FC = () => {
 
                 {/* Final Real Cut Video Viewport */}
                 <div className="w-[200px] h-[355px] mx-auto rounded-2xl bg-black border border-purple-500/40 shadow-[0_0_30px_rgba(255,20,147,0.25)] overflow-hidden relative mb-6">
-                  <video
-                    key={renderedBlobUrl || videoUrl}
-                    src={renderedBlobUrl || videoUrl}
-                    className="w-full h-full object-cover"
-                    autoPlay
-                    loop
-                    controls
-                    playsInline
-                  />
+                  {renderedBlobUrl ? (
+                    <video
+                      key={renderedBlobUrl}
+                      src={renderedBlobUrl}
+                      className="w-full h-full object-cover"
+                      autoPlay
+                      loop
+                      controls
+                      playsInline
+                    />
+                  ) : (
+                    <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+                      {aspectRatio === '9:16' && framingMode === 'cover' && (
+                        <div
+                          className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-65 scale-110 pointer-events-none"
+                          style={{
+                            backgroundImage: `url(${videoThumbnail || '/images/thumb-1.png'})`,
+                          }}
+                        />
+                      )}
+                      <video
+                        key={videoUrl}
+                        src={videoUrl}
+                        className={`w-full relative z-10 ${
+                          aspectRatio === '9:16' && framingMode === 'cover'
+                            ? 'object-cover max-h-[250px]'
+                            : 'h-full object-cover'
+                        }`}
+                        style={{
+                          transform: aspectRatio === '9:16' && framingMode === 'cover' ? `scale(${coverZoom})` : undefined,
+                        }}
+                        autoPlay
+                        loop
+                        controls
+                        playsInline
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Real Download Button & Feed Button */}

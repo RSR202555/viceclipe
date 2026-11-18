@@ -211,10 +211,19 @@ def render_clip(
             ]
             vf = ",".join([f for f in filters if f])
             cmd.extend(["-vf", vf, "-map", "0:v", "-map", "0:a?"])
-        else: # 'cover' (default)
-            filters = ["crop=ih*(9/16):ih:(iw-ow)/2:0", "scale=1080:1920", sub_filter]
-            vf = ",".join([f for f in filters if f])
-            cmd.extend(["-vf", vf, "-map", "0:v", "-map", "0:a?"])
+        else: # 'cover' (Smart Proportional Fill with balanced zoom limit)
+            safe_zoom = 1.18
+            fg_width = int(round(1080 * safe_zoom))
+            fc = (
+                f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=16:4,setsar=1[bg];"
+                f"[0:v]scale={fg_width}:-2,crop=1080:ih:(iw-1080)/2:0,setsar=1[fg];"
+                f"[bg][fg]overlay=(W-w)/2:(H-h)/2"
+            )
+            if sub_filter:
+                fc += f"[merged];[merged]{sub_filter}[outv]"
+            else:
+                fc += "[outv]"
+            cmd.extend(["-filter_complex", fc, "-map", "[outv]", "-map", "0:a?"])
     else: # 16:9
         filters = ["scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black", sub_filter]
         vf = ",".join([f for f in filters if f])
