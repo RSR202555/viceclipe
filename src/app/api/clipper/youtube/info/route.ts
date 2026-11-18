@@ -134,6 +134,10 @@ export async function POST(request: NextRequest) {
         errMsg.includes('not a bot') ||
         errMsg.includes('BOT_CHECK') ||
         errMsg.includes('Sign in to confirm');
+      const isPlayerSolve =
+        errMsg.includes('prepare player') ||
+        errMsg.includes('PLAYER_SOLVE_FAILED') ||
+        errMsg.includes('signature cipher');
       const isPrivate = errMsg.includes('private') || errMsg.includes('PRIVATE');
       const isNotFound =
         errMsg.includes('unavailable') ||
@@ -173,6 +177,20 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      if (isPlayerSolve) {
+        return NextResponse.json(
+          {
+            success: false,
+            videoId,
+            title: oembedTitle,
+            error: `O decodificador encontrou proteção no player do YouTube para ${displayTitle} (o vídeo pode conter restrição de idade ou proteção de assinatura).`,
+            suggestion:
+              'Para cortar este vídeo com máxima velocidade, envie o arquivo MP4 diretamente pela aba "Upload PC", ou teste com outro link público.',
+          },
+          { status: 422 }
+        );
+      }
+
       if (isBotCheck) {
         return NextResponse.json(
           {
@@ -197,10 +215,15 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      const cleanReason = errMsg
+        .replace(/^Could not play [^:]+:\s*/i, '')
+        .replace(/This video needs a signed-in.*$/i, 'Este vídeo exige conta logada no YouTube.')
+        .trim();
+
       return NextResponse.json(
         {
           success: false,
-          error: `Não foi possível carregar o vídeo ${displayTitle}: ${errMsg || 'Erro na extração de mídia'}`,
+          error: `Não foi possível carregar o vídeo ${displayTitle}: ${cleanReason || 'Erro na extração de mídia'}`,
           suggestion:
             'Tente outro vídeo do YouTube ou envie o arquivo diretamente pela aba "Upload PC".',
         },
