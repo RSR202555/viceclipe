@@ -43,7 +43,7 @@ function formatAssTime(sec: number): string {
 // Build video and subtitle filter args for FFmpeg
 function buildVideoFilter({
   aspectRatio,
-  framingMode,
+  framingMode = 'blur',
   framingFocus = 'center',
   coverZoom = 1.0,
   captionText,
@@ -54,7 +54,7 @@ function buildVideoFilter({
   assFileRelPath,
 }: {
   aspectRatio: string;
-  framingMode: string;
+  framingMode?: string;
   framingFocus?: string;
   coverZoom?: number;
   captionText?: string;
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
       startTime = 0,
       endTime = 15,
       aspectRatio = '9:16',
-      framingMode = 'cover', // Default to 'cover' (fills screen, zero blur)
+      framingMode = 'blur', // Default to 'blur' (preserves 100% of video without unwanted crop/zoom)
       framingFocus = 'center', // Default framing focus: 'center' | 'left' | 'right' | 'top'
       coverZoom = 1.0,
       lang,
@@ -276,9 +276,12 @@ ${eventsSection}
 
     // Resolve FFmpeg binary
     const possiblePaths = [
+      process.env.FFMPEG_PATH,
       path.join(process.cwd(), 'node_modules', 'ffmpeg-static', 'ffmpeg.exe'),
       path.join(process.cwd(), 'node_modules', 'ffmpeg-static', 'ffmpeg'),
-    ];
+      'D:\\VICE CLIPS\\node_modules\\ffmpeg-static\\ffmpeg.exe',
+      'C:\\ffmpeg\\bin\\ffmpeg.exe',
+    ].filter(Boolean) as string[];
     let ffmpegPath = possiblePaths.find((p) => fs.existsSync(p));
     if (!ffmpegPath) {
       try {
